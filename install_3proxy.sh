@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 脚本功能：检查并安装 3proxy，支持自定义 SOCKS5 代理端口、用户名和密码
+# 脚本功能：检查并安装 3proxy，支持自定义 SOCKS5 代理端口、用户名和密码，并配置开机启动
 
 # 检查是否以 root 用户运行
 if [ "$EUID" -ne 0 ]; then
@@ -11,6 +11,7 @@ fi
 # 定义 3proxy 的安装路径和配置文件路径
 PROXY_BIN="/usr/local/bin/3proxy"
 PROXY_CONFIG="/etc/3proxy/3proxy.cfg"
+SERVICE_FILE="/etc/systemd/system/3proxy.service"
 
 # 获取本机外网 IP 地址
 get_external_ip() {
@@ -44,8 +45,7 @@ if command -v 3proxy &> /dev/null || [ -f "$PROXY_BIN" ]; then
 
   # 重启 3proxy 服务
   echo "重启 3proxy 服务..."
-  pkill 3proxy
-  3proxy "$PROXY_CONFIG"
+  systemctl restart 3proxy
   echo "3proxy 服务已重启。"
 else
   echo "3proxy 未安装，开始安装..."
@@ -100,7 +100,30 @@ EOL
   mkdir -p /var/log/3proxy
   touch /var/log/3proxy/3proxy.log
 
-  echo "3proxy 安装完成。配置文件已生成。"
+  # 创建 systemd 服务文件
+  echo "创建 systemd 服务文件..."
+  cat > "$SERVICE_FILE" <<EOL
+[Unit]
+Description=3proxy Proxy Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$PROXY_BIN $PROXY_CONFIG
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+  # 重新加载 systemd 配置
+  systemctl daemon-reload
+
+  # 启用并启动 3proxy 服务
+  echo "启用并启动 3proxy 服务..."
+  systemctl enable 3proxy
+  systemctl start 3proxy
 
   # 输出配置信息
   get_external_ip
@@ -108,10 +131,7 @@ EOL
   echo "代理用户名: $PROXY_USER"
   echo "代理密码: $PROXY_PASS"
 
-  # 启动 3proxy 服务
-  echo "启动 3proxy 服务..."
-  3proxy "$PROXY_CONFIG"
-  echo "3proxy 服务已启动。"
+  echo "3proxy 安装完成，并已配置为开机启动。"
 fi
 
 echo "脚本执行完成。"

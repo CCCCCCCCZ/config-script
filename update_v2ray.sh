@@ -15,6 +15,9 @@ if ! command -v v2ray &> /dev/null; then
     exit 1
   else
     echo "V2Ray 安装成功！"
+    # 启用并启动 V2Ray 服务
+    systemctl enable v2ray --now
+    echo "V2Ray 服务已启用并启动。"
   fi
 else
   echo "V2Ray 已安装。"
