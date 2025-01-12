@@ -54,26 +54,34 @@ import json
 with open("$V2RAY_CONFIG_FILE", "r") as f:
     config = json.load(f)
 
-# 显示 inbounds 配置
-print("========== Inbounds ==========")
+# 显示 Inbounds 和 Outbounds 的绑定关系
+print("========== Inbounds => Outbounds ==========")
 for inbound in config.get("inbounds", []):
-    print(f"端口: {inbound.get('port', '未知')}, 协议: {inbound.get('protocol', '未知')}, 标签: {inbound.get('tag', '未知')}")
+    inbound_port = inbound.get("port", "未知")
+    inbound_protocol = inbound.get("protocol", "未知")
+    inbound_tag = inbound.get("tag", "未知")
 
-# 显示 outbounds 配置
-print("========== Outbounds ==========")
-for outbound in config.get("outbounds", []):
-    servers = outbound.get("settings", {}).get("servers", [])
-    for server in servers:
-        print(f"标签: {outbound.get('tag', '未知')}, 协议: {outbound.get('protocol', '未知')}, 地址: {server.get('address', '未知')}, 端口: {server.get('port', '未知')}")
-
-# 显示 routing 规则
-print("========== Routing Rules ==========")
-for rule in config.get("routing", {}).get("rules", []):
-    inbound_tags = rule.get("inboundTag", [])
-    if not isinstance(inbound_tags, list):
-        inbound_tags = [inbound_tags]
-    for inbound_tag in inbound_tags:
-        print(f"入站标签: {inbound_tag}, 出站标签: {rule.get('outboundTag', '未知')}")
+    # 查找对应的 outbound
+    for rule in config.get("routing", {}).get("rules", []):
+        if inbound_tag in rule.get("inboundTag", []):
+            outbound_tag = rule.get("outboundTag", "未知")
+            for outbound in config.get("outbounds", []):
+                if outbound.get("tag") == outbound_tag:
+                    outbound_protocol = outbound.get("protocol", "未知")
+                    servers = outbound.get("settings", {}).get("servers", [])
+                    for server in servers:
+                        address = server.get("address", "未知")
+                        port = server.get("port", "未知")
+                        users = server.get("users", [])
+                        if users:
+                            for user in users:
+                                username = user.get("user", "未知")
+                                password = user.get("pass", "未知")
+                                print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: {username} 密码: {password}")
+                        else:
+                            print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: 无 密码: 无")
+                    break
+            break
 EOF
 }
 
