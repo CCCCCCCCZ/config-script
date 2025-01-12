@@ -200,7 +200,7 @@ EOF
   if [[ "$OUTBOUND_PROTOCOL_INDEX" -eq $(( ${#PROTOCOLS[@]} + 1 )) ]]; then
     # 直连选项
     OUTBOUND_PROTOCOL="freedom"
-    OUTBOUND_TAG="outbound_direct"
+    OUTBOUND_TAG="outbound_$INBOUND_PORT"
     NEW_OUTBOUND=$(cat <<EOF
 {
   "tag": "$OUTBOUND_TAG",
@@ -435,22 +435,6 @@ EOF
 
 # 修改 outbound 配置
 modify_outbound() {
-  read -p "请输入新的 outbound 目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // "无"')): " NEW_OUTBOUND_ADDRESS
-  NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // ""')}
-
-  read -p "请输入新的 outbound 目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // "无"')): " NEW_OUTBOUND_PORT
-  NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // ""')}
-
-  read -p "请输入新的 outbound 用户名 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // "无"')): " NEW_OUTBOUND_USER
-  NEW_OUTBOUND_USER=${NEW_OUTBOUND_USER:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // ""')}
-
-  if [[ -n "$NEW_OUTBOUND_USER" ]]; then
-    read -p "请输入新的 outbound 密码 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // "无"')): " NEW_OUTBOUND_PASS
-    NEW_OUTBOUND_PASS=${NEW_OUTBOUND_PASS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // ""')}
-  else
-    NEW_OUTBOUND_PASS=""
-  fi
-
   # 支持的协议列表
   PROTOCOLS=("socks" "http" "shadowsocks" "vmess" "trojan" "vless" "freedom")
 
@@ -462,6 +446,25 @@ modify_outbound() {
   read -p "请输入协议序号 (默认: 1): " OUTBOUND_PROTOCOL_INDEX
   OUTBOUND_PROTOCOL_INDEX=${OUTBOUND_PROTOCOL_INDEX:-1}
   NEW_OUTBOUND_PROTOCOL=${PROTOCOLS[$((OUTBOUND_PROTOCOL_INDEX-1))]}
+
+  # 如果选择的协议不是 freedom，则需要输入服务器地址、端口等信息
+  if [[ "$NEW_OUTBOUND_PROTOCOL" != "freedom" ]]; then
+    read -p "请输入新的 outbound 目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // "无"')): " NEW_OUTBOUND_ADDRESS
+    NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // ""')}
+
+    read -p "请输入新的 outbound 目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // "无"')): " NEW_OUTBOUND_PORT
+    NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // ""')}
+
+    read -p "请输入新的 outbound 用户名 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // "无"')): " NEW_OUTBOUND_USER
+    NEW_OUTBOUND_USER=${NEW_OUTBOUND_USER:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // ""')}
+
+    if [[ -n "$NEW_OUTBOUND_USER" ]]; then
+      read -p "请输入新的 outbound 密码 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // "无"')): " NEW_OUTBOUND_PASS
+      NEW_OUTBOUND_PASS=${NEW_OUTBOUND_PASS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // ""')}
+    else
+      NEW_OUTBOUND_PASS=""
+    fi
+  fi
 
   # 使用 Python 更新 outbound 配置
   python3 - <<EOF
