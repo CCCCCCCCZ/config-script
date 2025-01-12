@@ -154,8 +154,8 @@ add_config() {
   INBOUND_PROTOCOL_INDEX=${INBOUND_PROTOCOL_INDEX:-1}
   INBOUND_PROTOCOL=${PROTOCOLS[$((INBOUND_PROTOCOL_INDEX-1))]}
 
-  read -p "请输入 inbound 监听端口 (默认: 5000): " INBOUND_PORT
-  INBOUND_PORT=${INBOUND_PORT:-5000}
+  read -p "请输入 inbound 监听端口 (默认: 20000): " INBOUND_PORT
+  INBOUND_PORT=${INBOUND_PORT:-20000}
 
   read -p "请输入 inbound 用户名 (留空则不需要验证): " INBOUND_USER
   INBOUND_USER=${INBOUND_USER:-123}
