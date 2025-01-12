@@ -56,7 +56,7 @@ with open("$V2RAY_CONFIG_FILE", "r") as f:
     config = json.load(f)
 
 # 显示 Inbounds 和 Outbounds 的绑定关系
-print("========== Inbounds => Outbounds ==========")
+
 for inbound in config.get("inbounds", []):
     inbound_port = inbound.get("port", "未知")
     inbound_protocol = inbound.get("protocol", "未知")
@@ -92,12 +92,59 @@ EOF
 echo "=============================="
 }
 
-# 配置 V2Ray
-configure_v2ray() {
+check_v2ray_configure() {
   if [[ ! -f "$V2RAY_CONFIG_FILE" ]]; then
     echo "未找到配置文件，将创建新配置文件。"
     echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+  else
+    # 检查文件是否为空或仅包含 {}
+    if [[ ! -s "$V2RAY_CONFIG_FILE" ]] || [[ "$(cat "$V2RAY_CONFIG_FILE")" == "{}" ]]; then
+      echo "配置文件存在但内容为空或仅包含 {}，将写入默认配置。"
+      echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+    else
+      # 检查配置文件格式是否有效
+      if ! jq empty "$V2RAY_CONFIG_FILE" &> /dev/null; then
+        echo "配置文件内容格式错误，将重置为默认配置。"
+        echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+      else
+        # 检查配置文件结构是否完整
+        if ! jq '.inbounds != null and .outbounds != null and .routing.rules != null' "$V2RAY_CONFIG_FILE" &> /dev/null; then
+          echo "配置文件结构不完整，将重置为默认配置。"
+          echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+        else
+          echo "配置文件已存在且内容有效，无需修改。"
+        fi
+      fi
+    fi
   fi
+}() {
+  if [[ ! -f "$V2RAY_CONFIG_FILE" ]]; then
+    echo "未找到配置文件，将创建新配置文件。"
+    echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+  else
+    # 检查文件是否为空或仅包含 {}
+    if [[ ! -s "$V2RAY_CONFIG_FILE" ]] || [[ "$(cat "$V2RAY_CONFIG_FILE")" == "{}" ]]; then
+      echo "配置文件存在但内容为空或仅包含 {}，将写入默认配置。"
+      echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+    else
+      # 检查配置文件格式是否有效
+      if ! jq empty "$V2RAY_CONFIG_FILE" &> /dev/null; then
+        echo "配置文件内容格式错误，将重置为默认配置。"
+        echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+      else
+        # 检查配置文件结构是否完整
+        if ! jq '.inbounds != null and .outbounds != null and .routing.rules != null' "$V2RAY_CONFIG_FILE" &> /dev/null; then
+          echo "配置文件结构不完整，将重置为默认配置。"
+          echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
+        fi
+      fi
+    fi
+  fi
+}
+
+# 配置 V2Ray
+configure_v2ray() {
+  check_v2ray_configure
 
   while true; do
     echo "请选择要执行的操作："
