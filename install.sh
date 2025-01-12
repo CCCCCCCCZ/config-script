@@ -68,18 +68,23 @@ for inbound in config.get("inbounds", []):
             for outbound in config.get("outbounds", []):
                 if outbound.get("tag") == outbound_tag:
                     outbound_protocol = outbound.get("protocol", "未知")
-                    servers = outbound.get("settings", {}).get("servers", [])
-                    for server in servers:
-                        address = server.get("address", "未知")
-                        port = server.get("port", "未知")
-                        users = server.get("users", [])
-                        if users:
-                            for user in users:
-                                username = user.get("user", "未知")
-                                password = user.get("pass", "未知")
-                                print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: {username} 密码: {password}")
-                        else:
-                            print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: 无 密码: 无")
+                    if outbound_protocol == "freedom":
+                        # 直连 outbound
+                        print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: 直连")
+                    else:
+                        # 普通 outbound
+                        servers = outbound.get("settings", {}).get("servers", [])
+                        for server in servers:
+                            address = server.get("address", "未知")
+                            port = server.get("port", "未知")
+                            users = server.get("users", [])
+                            if users:
+                                for user in users:
+                                    username = user.get("user", "未知")
+                                    password = user.get("pass", "未知")
+                                    print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: {username} 密码: {password}")
+                            else:
+                                print(f"Inbounds: {inbound_port} {inbound_protocol} => Outbounds: {address}:{port} {outbound_protocol} 用户名: 无 密码: 无")
                     break
             break
 EOF
@@ -124,9 +129,17 @@ configure_v2ray() {
 add_config() {
   echo "添加配置："
 
+  # 支持的协议列表
+  PROTOCOLS=("socks" "http" "shadowsocks" "vmess" "trojan" "vless")
+
   # 配置 inbound
-  read -p "请输入 inbound 协议 (默认: socks): " INBOUND_PROTOCOL
-  INBOUND_PROTOCOL=${INBOUND_PROTOCOL:-socks}
+  echo "请选择 inbound 协议："
+  for i in "${!PROTOCOLS[@]}"; do
+    echo "$((i+1)). ${PROTOCOLS[$i]}"
+  done
+  read -p "请输入协议序号 (默认: 1): " INBOUND_PROTOCOL_INDEX
+  INBOUND_PROTOCOL_INDEX=${INBOUND_PROTOCOL_INDEX:-1}
+  INBOUND_PROTOCOL=${PROTOCOLS[$((INBOUND_PROTOCOL_INDEX-1))]}
 
   read -p "请输入 inbound 监听端口 (默认: 5000): " INBOUND_PORT
   INBOUND_PORT=${INBOUND_PORT:-5000}
@@ -176,40 +189,63 @@ EOF
   fi
 
   # 配置 outbound
-  while true; do
-    read -p "请输入 outbound 目标服务器地址: " OUTBOUND_ADDRESS
-    if [[ "$OUTBOUND_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-      break
-    else
-      echo "错误：请输入有效的 IP 地址！"
-    fi
+  echo "请选择 outbound 协议："
+  for i in "${!PROTOCOLS[@]}"; do
+    echo "$((i+1)). ${PROTOCOLS[$i]}"
   done
+  echo "$(( ${#PROTOCOLS[@]} + 1 )). 直连"
+  read -p "请输入协议序号 (默认: 1): " OUTBOUND_PROTOCOL_INDEX
+  OUTBOUND_PROTOCOL_INDEX=${OUTBOUND_PROTOCOL_INDEX:-1}
 
-  while true; do
-    read -p "请输入 outbound 目标服务器端口: " OUTBOUND_PORT
-    if [[ "$OUTBOUND_PORT" =~ ^[0-9]+$ ]] && [ "$OUTBOUND_PORT" -ge 1 ] && [ "$OUTBOUND_PORT" -le 65535 ]; then
-      break
-    else
-      echo "错误：请输入有效的端口号（1-65535）！"
-    fi
-  done
-
-  read -p "请输入 outbound 用户名（留空则启用无验证）: " OUTBOUND_USER
-
-  if [[ -n "$OUTBOUND_USER" ]]; then
-    read -p "请输入 outbound 密码: " OUTBOUND_PASS
-  else
-    OUTBOUND_PASS=""
-  fi
-
-  OUTBOUND_TAG="outbound_$INBOUND_PORT"
-
-  # 生成新的 outbound 配置
-  if [[ -n "$OUTBOUND_USER" ]]; then
+  if [[ "$OUTBOUND_PROTOCOL_INDEX" -eq $(( ${#PROTOCOLS[@]} + 1 )) ]]; then
+    # 直连选项
+    OUTBOUND_PROTOCOL="freedom"
+    OUTBOUND_TAG="outbound_direct"
     NEW_OUTBOUND=$(cat <<EOF
 {
   "tag": "$OUTBOUND_TAG",
-  "protocol": "$INBOUND_PROTOCOL",
+  "protocol": "freedom",
+  "settings": {}
+}
+EOF
+    )
+  else
+    # 普通协议
+    OUTBOUND_PROTOCOL=${PROTOCOLS[$((OUTBOUND_PROTOCOL_INDEX-1))]}
+    OUTBOUND_TAG="outbound_$INBOUND_PORT"
+
+    while true; do
+      read -p "请输入 outbound 目标服务器地址: " OUTBOUND_ADDRESS
+      if [[ "$OUTBOUND_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        break
+      else
+        echo "错误：请输入有效的 IP 地址！"
+      fi
+    done
+
+    while true; do
+      read -p "请输入 outbound 目标服务器端口: " OUTBOUND_PORT
+      if [[ "$OUTBOUND_PORT" =~ ^[0-9]+$ ]] && [ "$OUTBOUND_PORT" -ge 1 ] && [ "$OUTBOUND_PORT" -le 65535 ]; then
+        break
+      else
+        echo "错误：请输入有效的端口号（1-65535）！"
+      fi
+    done
+
+    read -p "请输入 outbound 用户名（留空则启用无验证）: " OUTBOUND_USER
+
+    if [[ -n "$OUTBOUND_USER" ]]; then
+      read -p "请输入 outbound 密码: " OUTBOUND_PASS
+    else
+      OUTBOUND_PASS=""
+    fi
+
+    # 生成新的 outbound 配置
+    if [[ -n "$OUTBOUND_USER" ]]; then
+      NEW_OUTBOUND=$(cat <<EOF
+{
+  "tag": "$OUTBOUND_TAG",
+  "protocol": "$OUTBOUND_PROTOCOL",
   "settings": {
     "servers": [
       {
@@ -226,12 +262,12 @@ EOF
   }
 }
 EOF
-    )
-  else
-    NEW_OUTBOUND=$(cat <<EOF
+      )
+    else
+      NEW_OUTBOUND=$(cat <<EOF
 {
   "tag": "$OUTBOUND_TAG",
-  "protocol": "$INBOUND_PROTOCOL",
+  "protocol": "$OUTBOUND_PROTOCOL",
   "settings": {
     "servers": [
       {
@@ -239,10 +275,11 @@ EOF
         "port": $OUTBOUND_PORT
       }
     ]
-  }
+      }
 }
 EOF
-    )
+      )
+    fi
   fi
 
   # 生成新的 routing 规则
@@ -255,16 +292,23 @@ EOF
 EOF
   )
 
-  # 使用 jq 将新的配置追加到现有配置中
-  if ! command -v jq &> /dev/null; then
-    echo "jq 未安装，正在安装 jq..."
-    apt update && apt install -y jq
-  fi
+  # 使用 Python 将新的配置追加到现有配置中
+  python3 - <<EOF
+import json
 
-  # 追加新的 inbound、outbound 和路由规则
-  jq ".inbounds += [$NEW_INBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  jq ".outbounds += [$NEW_OUTBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  jq ".routing.rules += [$NEW_ROUTING_RULE]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+# 读取配置文件
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+# 追加新的 inbound、outbound 和路由规则
+config["inbounds"].append($NEW_INBOUND)
+config["outbounds"].append($NEW_OUTBOUND)
+config["routing"]["rules"].append($NEW_ROUTING_RULE)
+
+# 写回配置文件
+with open("$V2RAY_CONFIG_FILE", "w") as f:
+    json.dump(config, f, indent=2)
+EOF
 
   echo "配置已添加！"
   systemctl restart v2ray
@@ -277,16 +321,49 @@ modify_config() {
 
   read -p "请输入要修改的 inbound 端口: " INBOUND_PORT
 
-  # 查找对应的 inbound 配置
-  INBOUND_CONFIG=$(jq -r ".inbounds[] | select(.port == $INBOUND_PORT)" "$V2RAY_CONFIG_FILE")
+  # 使用 Python 查找对应的 inbound 配置
+  INBOUND_CONFIG=$(python3 - <<EOF
+import json
+
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+inbound_config = next((inbound for inbound in config["inbounds"] if inbound["port"] == $INBOUND_PORT), None)
+if inbound_config:
+    print(json.dumps(inbound_config))
+EOF
+  )
+
   if [[ -z "$INBOUND_CONFIG" ]]; then
     echo "未找到对应的 inbound 配置！"
     return
   fi
 
-  # 查找对应的 outbound 配置
-  OUTBOUND_TAG=$(jq -r ".routing.rules[] | select(.inboundTag[] == \"$(echo "$INBOUND_CONFIG" | jq -r '.tag')\") | .outboundTag" "$V2RAY_CONFIG_FILE")
-  OUTBOUND_CONFIG=$(jq -r ".outbounds[] | select(.tag == \"$OUTBOUND_TAG\")" "$V2RAY_CONFIG_FILE")
+  # 使用 Python 查找对应的 outbound 配置
+  OUTBOUND_TAG=$(python3 - <<EOF
+import json
+
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+inbound_tag = json.loads('''$INBOUND_CONFIG''')["tag"]
+outbound_tag = next((rule["outboundTag"] for rule in config["routing"]["rules"] if inbound_tag in rule.get("inboundTag", [])), None)
+print(outbound_tag)
+EOF
+  )
+
+  OUTBOUND_CONFIG=$(python3 - <<EOF
+import json
+
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+outbound_config = next((outbound for outbound in config["outbounds"] if outbound["tag"] == "$OUTBOUND_TAG"), None)
+if outbound_config:
+    print(json.dumps(outbound_config))
+EOF
+  )
+
   if [[ -z "$OUTBOUND_CONFIG" ]]; then
     echo "未找到对应的 outbound 配置！"
     return
@@ -332,11 +409,23 @@ modify_inbound() {
   read -p "请输入新的 inbound 密码 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass // "无"')): " NEW_INBOUND_PASS
   NEW_INBOUND_PASS=${NEW_INBOUND_PASS:-$(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass // ""')}
 
-  # 更新 inbound 配置
-  jq "(.inbounds[] | select(.port == $INBOUND_PORT) | .port) = $NEW_INBOUND_PORT |
-      (.inbounds[] | select(.port == $INBOUND_PORT) | .settings.accounts[0].user) = \"$NEW_INBOUND_USER\" |
-      (.inbounds[] | select(.port == $INBOUND_PORT) | .settings.accounts[0].pass) = \"$NEW_INBOUND_PASS\"" \
-      "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+  # 使用 Python 更新 inbound 配置
+  python3 - <<EOF
+import json
+
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+for inbound in config["inbounds"]:
+    if inbound["port"] == $INBOUND_PORT:
+        inbound["port"] = $NEW_INBOUND_PORT
+        if "$NEW_INBOUND_USER" and "$NEW_INBOUND_PASS":
+            inbound["settings"]["accounts"][0]["user"] = "$NEW_INBOUND_USER"
+            inbound["settings"]["accounts"][0]["pass"] = "$NEW_INBOUND_PASS"
+
+with open("$V2RAY_CONFIG_FILE", "w") as f:
+    json.dump(config, f, indent=2)
+EOF
 
   echo "inbound 配置已更新！"
   systemctl restart v2ray
@@ -361,19 +450,26 @@ modify_outbound() {
     NEW_OUTBOUND_PASS=""
   fi
 
-  # 更新 outbound 配置
-  if [[ -n "$NEW_OUTBOUND_USER" ]]; then
-    jq "(.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].address) = \"$NEW_OUTBOUND_ADDRESS\" |
-        (.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].port) = $NEW_OUTBOUND_PORT |
-        (.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].users[0].user) = \"$NEW_OUTBOUND_USER\" |
-        (.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].users[0].pass) = \"$NEW_OUTBOUND_PASS\"" \
-        "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  else
-    jq "(.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].address) = \"$NEW_OUTBOUND_ADDRESS\" |
-        (.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].port) = $NEW_OUTBOUND_PORT |
-        del(.outbounds[] | select(.tag == \"$OUTBOUND_TAG\") | .settings.servers[0].users)" \
-        "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  fi
+  # 使用 Python 更新 outbound 配置
+  python3 - <<EOF
+import json
+
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
+
+for outbound in config["outbounds"]:
+    if outbound["tag"] == "$OUTBOUND_TAG":
+        outbound["settings"]["servers"][0]["address"] = "$NEW_OUTBOUND_ADDRESS"
+        outbound["settings"]["servers"][0]["port"] = $NEW_OUTBOUND_PORT
+        if "$NEW_OUTBOUND_USER" and "$NEW_OUTBOUND_PASS":
+            outbound["settings"]["servers"][0]["users"][0]["user"] = "$NEW_OUTBOUND_USER"
+            outbound["settings"]["servers"][0]["users"][0]["pass"] = "$NEW_OUTBOUND_PASS"
+        else:
+            outbound["settings"]["servers"][0].pop("users", None)
+
+with open("$V2RAY_CONFIG_FILE", "w") as f:
+    json.dump(config, f, indent=2)
+EOF
 
   echo "outbound 配置已更新！"
   systemctl restart v2ray
@@ -386,36 +482,38 @@ delete_config() {
 
   read -p "请输入要删除的 inbound 端口: " INBOUND_PORT
 
-  # 查找对应的 inbound 配置
-  INBOUND_CONFIG=$(jq -r ".inbounds[] | select(.port == $INBOUND_PORT)" "$V2RAY_CONFIG_FILE")
-  if [[ -z "$INBOUND_CONFIG" ]]; then
-    echo "未找到对应的 inbound 配置！"
-    return
-  fi
+  # 使用 Python 删除配置
+  python3 - <<EOF
+import json
 
-  # 查找对应的 outbound 配置
-  OUTBOUND_TAG=$(jq -r ".routing.rules[] | select(.inboundTag[] == \"$(echo "$INBOUND_CONFIG" | jq -r '.tag')\") | .outboundTag" "$V2RAY_CONFIG_FILE")
-  OUTBOUND_CONFIG=$(jq -r ".outbounds[] | select(.tag == \"$OUTBOUND_TAG\")" "$V2RAY_CONFIG_FILE")
-  if [[ -z "$OUTBOUND_CONFIG" ]]; then
-    echo "未找到对应的 outbound 配置！"
-    return
-  fi
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
 
-  # 删除 inbound 配置
-  jq "del(.inbounds[] | select(.port == $INBOUND_PORT))" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  echo "已删除 inbound 配置：$INBOUND_PORT"
+# 查找对应的 inbound 配置
+inbound_config = next((inbound for inbound in config["inbounds"] if inbound["port"] == $INBOUND_PORT), None)
+if inbound_config:
+    inbound_tag = inbound_config["tag"]
 
-  # 删除 outbound 配置
-  jq "del(.outbounds[] | select(.tag == \"$OUTBOUND_TAG\"))" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  echo "已删除 outbound 配置：$OUTBOUND_TAG"
+    # 删除 inbound 配置
+    config["inbounds"] = [inbound for inbound in config["inbounds"] if inbound["port"] != $INBOUND_PORT]
 
-  # 删除对应的路由规则
-  jq "del(.routing.rules[] | select(.inboundTag[] == \"$(echo "$INBOUND_CONFIG" | jq -r '.tag')\"))" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  echo "已删除与 $INBOUND_PORT 相关的路由规则。"
+    # 查找对应的 outbound 配置
+    outbound_tag = next((rule["outboundTag"] for rule in config["routing"]["rules"] if inbound_tag in rule.get("inboundTag", [])), None)
+    if outbound_tag:
+        # 删除 outbound 配置
+        config["outbounds"] = [outbound for outbound in config["outbounds"] if outbound["tag"] != outbound_tag]
 
+    # 删除对应的路由规则
+    config["routing"]["rules"] = [rule for rule in config["routing"]["rules"] if inbound_tag not in rule.get("inboundTag", [])]
+
+    # 写回配置文件
+    with open("$V2RAY_CONFIG_FILE", "w") as f:
+        json.dump(config, f, indent=2)
+EOF
+
+  echo "配置已删除并重启 V2Ray 服务！"
   systemctl restart v2ray
   systemctl status v2ray
-  echo "配置已删除并重启 V2Ray 服务！"
 }
 
 # 主循环
