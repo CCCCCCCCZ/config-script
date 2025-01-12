@@ -249,16 +249,16 @@ EOF
 
 # 修改配置
 modify_config() {
-  echo "当前配置："
   echo "========== Inbounds => Outbounds =========="
-  jq -r '.inbounds[] | .tag as $inbound_tag | .port as $inbound_port | 
-         . as $inbound | 
-         .routing.rules[] | select(.inboundTag[] == $inbound_tag) | 
-         .outboundTag as $outbound_tag | 
-         . as $rule | 
-         .outbounds[] | select(.tag == $outbound_tag) | 
-         "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"' \
-         "$V2RAY_CONFIG_FILE"
+  jq -r '
+    .inbounds // [] | .[] | .tag as $inbound_tag | .port as $inbound_port | 
+    . as $inbound | 
+    .routing.rules // [] | .[] | select(.inboundTag // [] | index($inbound_tag)) | 
+    .outboundTag as $outbound_tag | 
+    . as $rule | 
+    .outbounds // [] | .[] | select(.tag == $outbound_tag) | 
+    "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"
+  ' "$V2RAY_CONFIG_FILE"
 
   read -p "请输入要修改的 inbound 端口: " INBOUND_PORT
 
