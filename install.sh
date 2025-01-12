@@ -9,10 +9,7 @@ show_menu() {
   echo "1. 安装 V2Ray"
   echo "2. 卸载 V2Ray"
   echo "3. 配置 V2Ray"
-  echo "4. 安装 3proxy"
-  echo "5. 卸载 3proxy"
-  echo "6. 配置 3proxy"
-  echo "7. 退出"
+  echo "4. 退出"
 }
 
 # 安装 V2Ray
@@ -45,76 +42,95 @@ uninstall_v2ray() {
   fi
 }
 
-# 配置 V2Ray（支持查看、添加、修改和删除配置）
+# 配置 V2Ray
 configure_v2ray() {
   if [[ ! -f "$V2RAY_CONFIG_FILE" ]]; then
     echo "未找到配置文件，将创建新配置文件。"
     echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
   fi
 
-  # 显示当前配置
-  echo "当前配置："
-  echo "========== Inbounds => Outbounds =========="
-  jq -r '.inbounds[] | .tag as $inbound_tag | .port as $inbound_port | 
-         . as $inbound | 
-         .routing.rules[] | select(.inboundTag[] == $inbound_tag) | 
-         .outboundTag as $outbound_tag | 
-         . as $rule | 
-         .outbounds[] | select(.tag == $outbound_tag) | 
-         "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"' \
-         "$V2RAY_CONFIG_FILE"
+  while true; do
+    echo "请选择要执行的操作："
+    echo "1. 添加配置"
+    echo "2. 修改配置"
+    echo "3. 删除配置"
+    echo "4. 返回主菜单"
+    read -p "请输入序号: " CONFIG_CHOICE
 
-  # 选择操作
-  echo "请选择要执行的操作："
-  echo "1. 添加配置"
-  echo "2. 修改配置"
-  echo "3. 删除配置"
-  echo "4. 返回主菜单"
-  read -p "请输入序号: " OPERATION_CHOICE
-
-  case $OPERATION_CHOICE in
-    1)
-      add_config
-      ;;
-    2)
-      modify_config
-      ;;
-    3)
-      delete_config
-      ;;
-    4)
-      return
-      ;;
-    *)
-      echo "无效的选择，请重新输入！"
-      ;;
-  esac
+    case $CONFIG_CHOICE in
+      1)
+        add_config
+        ;;
+      2)
+        modify_config
+        ;;
+      3)
+        delete_config
+        ;;
+      4)
+        return
+        ;;
+      *)
+        echo "无效的选择，请重新输入！"
+        ;;
+    esac
+  done
 }
 
 # 添加配置
 add_config() {
-  PROTOCOLS=("socks" "http" "shadowsocks" "vmess" "trojan" "vless")
-
-  echo "请配置 V2Ray 代理："
-  
-  # 选择协议
-  echo "请选择代理协议："
-  for i in "${!PROTOCOLS[@]}"; do
-    echo "$((i+1)). ${PROTOCOLS[$i]}"
-  done
-  read -p "请输入协议序号 (默认: 1): " PROTOCOL_INDEX
-  PROTOCOL_INDEX=${PROTOCOL_INDEX:-1}
-  PROTOCOL=${PROTOCOLS[$((PROTOCOL_INDEX-1))]}
+  echo "添加配置："
 
   # 配置 inbound
+  read -p "请输入 inbound 协议 (默认: socks): " INBOUND_PROTOCOL
+  INBOUND_PROTOCOL=${INBOUND_PROTOCOL:-socks}
+
   read -p "请输入 inbound 监听端口 (默认: 5000): " INBOUND_PORT
   INBOUND_PORT=${INBOUND_PORT:-5000}
 
-  read -p "请输入 inbound 用户名 (默认: 123): " INBOUND_USER
+  read -p "请输入 inbound 用户名 (留空则不需要验证): " INBOUND_USER
   INBOUND_USER=${INBOUND_USER:-123}
 
-  read -p "请输入 inbound 密码 (默认: 123): " INBOUND_PASS
+  read -p "请输入 inbound 密码 (留空则不需要验证): " INBOUND_PASS
   INBOUND_PASS=${INBOUND_PASS:-123}
+
+  INBOUND_TAG="inbound_$INBOUND_PORT"
+
+  # 生成新的 inbound 配置
+  if [[ -z "$INBOUND_USER" || -z "$INBOUND_PASS" ]]; then
+    NEW_INBOUND=$(cat <<EOF
+{
+  "tag": "$INBOUND_TAG",
+  "port": $INBOUND_PORT,
+  "protocol": "$INBOUND_PROTOCOL",
+  "settings": {
+    "udp": true,
+    "ip": "0.0.0.0"
+  }
+}
+EOF
+    )
+  else
+    NEW_INBOUND=$(cat <<EOF
+{
+  "tag": "$INBOUND_TAG",
+  "port": $INBOUND_PORT,
+  "protocol": "$INBOUND_PROTOCOL",
+  "settings": {
+    "auth": "password",
+    "accounts": [
+      {
+        "user": "$INBOUND_USER",
+        "pass": "$INBOUND_PASS"
+      }
+    ],
+    "udp": true,
+    "ip": "0.0.0.0"
+  }
+}
+EOF
+    )
+  fi
 
   # 配置 outbound
   while true; do
@@ -143,37 +159,14 @@ add_config() {
     OUTBOUND_PASS=""
   fi
 
-  # 生成唯一的标签
-  INBOUND_TAG="inbound_$INBOUND_PORT"
   OUTBOUND_TAG="outbound_$INBOUND_PORT"
-
-  # 生成新的 inbound 配置
-  NEW_INBOUND=$(cat <<EOF
-{
-  "tag": "$INBOUND_TAG",
-  "port": $INBOUND_PORT,
-  "protocol": "$PROTOCOL",
-  "settings": {
-    "auth": "password",
-    "accounts": [
-      {
-        "user": "$INBOUND_USER",
-        "pass": "$INBOUND_PASS"
-      }
-    ],
-    "udp": true,
-    "ip": "0.0.0.0"
-  }
-}
-EOF
-  )
 
   # 生成新的 outbound 配置
   if [[ -n "$OUTBOUND_USER" ]]; then
     NEW_OUTBOUND=$(cat <<EOF
 {
   "tag": "$OUTBOUND_TAG",
-  "protocol": "$PROTOCOL",
+  "protocol": "$INBOUND_PROTOCOL",
   "settings": {
     "servers": [
       {
@@ -195,7 +188,7 @@ EOF
     NEW_OUTBOUND=$(cat <<EOF
 {
   "tag": "$OUTBOUND_TAG",
-  "protocol": "$PROTOCOL",
+  "protocol": "$INBOUND_PROTOCOL",
   "settings": {
     "servers": [
       {
@@ -209,7 +202,7 @@ EOF
     )
   fi
 
-  # 生成新的路由规则
+  # 生成新的 routing 规则
   NEW_ROUTING_RULE=$(cat <<EOF
 {
   "type": "field",
@@ -220,12 +213,6 @@ EOF
   )
 
   # 使用 jq 将新的配置追加到现有配置中
-  if ! command -v jq &> /dev/null; then
-    echo "jq 未安装，正在安装 jq..."
-    apt update && apt install -y jq
-  fi
-
-  # 追加新的 inbound、outbound 和路由规则
   jq ".inbounds += [$NEW_INBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
   jq ".outbounds += [$NEW_OUTBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
   jq ".routing.rules += [$NEW_ROUTING_RULE]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
@@ -271,40 +258,68 @@ modify_config() {
   echo "当前 outbound 配置："
   echo "$OUTBOUND_CONFIG"
 
-  # 修改 inbound 配置
-  echo "修改 inbound 配置："
-  read -p "请输入新的监听端口 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.port')): " NEW_INBOUND_PORT
+  # 选择修改 inbound 或 outbound
+  echo "请选择要修改的配置："
+  echo "1. 修改 inbound 配置"
+  echo "2. 修改 outbound 配置"
+  echo "3. 返回"
+  read -p "请输入序号: " MODIFY_CHOICE
+
+  case $MODIFY_CHOICE in
+    1)
+      modify_inbound
+      ;;
+    2)
+      modify_outbound
+      ;;
+    3)
+      return
+      ;;
+    *)
+      echo "无效的选择，请重新输入！"
+      ;;
+  esac
+}
+
+# 修改 inbound 配置
+modify_inbound() {
+  read -p "请输入新的 inbound 监听端口 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.port')): " NEW_INBOUND_PORT
   NEW_INBOUND_PORT=${NEW_INBOUND_PORT:-$(echo "$INBOUND_CONFIG" | jq -r '.port')}
 
-  read -p "请输入新的用户名 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].user')): " NEW_INBOUND_USER
-  NEW_INBOUND_USER=${NEW_INBOUND_USER:-$(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].user')}
+  read -p "请输入新的 inbound 用户名 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].user // "无"')): " NEW_INBOUND_USER
+  NEW_INBOUND_USER=${NEW_INBOUND_USER:-$(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].user // ""')}
 
-  read -p "请输入新的密码 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass')): " NEW_INBOUND_PASS
-  NEW_INBOUND_PASS=${NEW_INBOUND_PASS:-$(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass')}
-
-  # 修改 outbound 配置
-  echo "修改 outbound 配置："
-  read -p "请输入新的目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')): " NEW_OUTBOUND_ADDRESS
-  NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')}
-
-  read -p "请输入新的目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')): " NEW_OUTBOUND_PORT
-  NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')}
-
-  read -p "请输入新的用户名 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // "无"')): " NEW_OUTBOUND_USER
-  NEW_OUTBOUND_USER=${NEW_OUTBOUND_USER:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // ""')}
-
-  if [[ -n "$NEW_OUTBOUND_USER" ]]; then
-    read -p "请输入新的密码 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // "无"')): " NEW_OUTBOUND_PASS
-    NEW_OUTBOUND_PASS=${NEW_OUTBOUND_PASS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // ""')}
-  else
-    NEW_OUTBOUND_PASS=""
-  fi
+  read -p "请输入新的 inbound 密码 (当前: $(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass // "无"')): " NEW_INBOUND_PASS
+  NEW_INBOUND_PASS=${NEW_INBOUND_PASS:-$(echo "$INBOUND_CONFIG" | jq -r '.settings.accounts[0].pass // ""')}
 
   # 更新 inbound 配置
   jq "(.inbounds[] | select(.port == $INBOUND_PORT) | .port) = $NEW_INBOUND_PORT |
       (.inbounds[] | select(.port == $INBOUND_PORT) | .settings.accounts[0].user) = \"$NEW_INBOUND_USER\" |
       (.inbounds[] | select(.port == $INBOUND_PORT) | .settings.accounts[0].pass) = \"$NEW_INBOUND_PASS\"" \
       "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+
+  echo "inbound 配置已更新！"
+  systemctl restart v2ray
+  systemctl status v2ray
+}
+
+# 修改 outbound 配置
+modify_outbound() {
+  read -p "请输入新的 outbound 目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')): " NEW_OUTBOUND_ADDRESS
+  NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')}
+
+  read -p "请输入新的 outbound 目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')): " NEW_OUTBOUND_PORT
+  NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')}
+
+  read -p "请输入新的 outbound 用户名 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // "无"')): " NEW_OUTBOUND_USER
+  NEW_OUTBOUND_USER=${NEW_OUTBOUND_USER:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // ""')}
+
+  if [[ -n "$NEW_OUTBOUND_USER" ]]; then
+    read -p "请输入新的 outbound 密码 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // "无"')): " NEW_OUTBOUND_PASS
+    NEW_OUTBOUND_PASS=${NEW_OUTBOUND_PASS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].pass // ""')}
+  else
+    NEW_OUTBOUND_PASS=""
+  fi
 
   # 更新 outbound 配置
   if [[ -n "$NEW_OUTBOUND_USER" ]]; then
@@ -320,7 +335,7 @@ modify_config() {
         "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
   fi
 
-  echo "配置已更新！"
+  echo "outbound 配置已更新！"
   systemctl restart v2ray
   systemctl status v2ray
 }
@@ -380,10 +395,7 @@ while true; do
     1) install_v2ray ;;
     2) uninstall_v2ray ;;
     3) configure_v2ray ;;
-    4) install_3proxy ;;
-    5) uninstall_3proxy ;;
-    6) configure_3proxy ;;
-    7) exit 0 ;;
+    4) exit 0 ;;
     *) echo "无效的选择，请重新输入！" ;;
   esac
 done
