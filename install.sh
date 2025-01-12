@@ -42,6 +42,21 @@ uninstall_v2ray() {
   fi
 }
 
+# 显示当前配置
+show_config() {
+  echo "========== 当前配置 =========="
+  echo "========== Inbounds => Outbounds =========="
+  jq -r '
+    .inbounds // [] | .[] | .tag as $inbound_tag | .port as $inbound_port | 
+    . as $inbound | 
+    .routing.rules // [] | .[] | select(.inboundTag // [] | index($inbound_tag) != null) | 
+    .outboundTag as $outbound_tag | 
+    . as $rule | 
+    .outbounds // [] | .[] | select(.tag == $outbound_tag) | 
+    "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"
+  ' "$V2RAY_CONFIG_FILE"
+}
+
 # 配置 V2Ray
 configure_v2ray() {
   if [[ ! -f "$V2RAY_CONFIG_FILE" ]]; then
@@ -77,6 +92,7 @@ configure_v2ray() {
   done
 }
 
+# 添加配置
 add_config() {
   echo "添加配置："
 
@@ -218,29 +234,9 @@ EOF
   fi
 
   # 追加新的 inbound、outbound 和路由规则
-  echo "正在追加 inbound 配置..."
   jq ".inbounds += [$NEW_INBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  if [ $? -eq 0 ]; then
-    echo "inbound 配置已成功写入文件。"
-  else
-    echo "inbound 配置写入失败！"
-  fi
-
-  echo "正在追加 outbound 配置..."
   jq ".outbounds += [$NEW_OUTBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  if [ $? -eq 0 ]; then
-    echo "outbound 配置已成功写入文件。"
-  else
-    echo "outbound 配置写入失败！"
-  fi
-
-  echo "正在追加 routing 规则..."
   jq ".routing.rules += [$NEW_ROUTING_RULE]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
-  if [ $? -eq 0 ]; then
-    echo "routing 规则已成功写入文件。"
-  else
-    echo "routing 规则写入失败！"
-  fi
 
   echo "配置已添加！"
   systemctl restart v2ray
@@ -249,16 +245,7 @@ EOF
 
 # 修改配置
 modify_config() {
-  echo "========== Inbounds => Outbounds =========="
-  jq -r '
-    .inbounds // [] | .[] | .tag as $inbound_tag | .port as $inbound_port | 
-    . as $inbound | 
-    .routing.rules // [] | .[] | select(.inboundTag // [] | index($inbound_tag)) | 
-    .outboundTag as $outbound_tag | 
-    . as $rule | 
-    .outbounds // [] | .[] | select(.tag == $outbound_tag) | 
-    "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"
-  ' "$V2RAY_CONFIG_FILE"
+  show_config
 
   read -p "请输入要修改的 inbound 端口: " INBOUND_PORT
 
@@ -367,16 +354,7 @@ modify_outbound() {
 
 # 删除配置
 delete_config() {
-  echo "当前配置："
-  echo "========== Inbounds => Outbounds =========="
-  jq -r '.inbounds[] | .tag as $inbound_tag | .port as $inbound_port | 
-         . as $inbound | 
-         .routing.rules[] | select(.inboundTag[] == $inbound_tag) | 
-         .outboundTag as $outbound_tag | 
-         . as $rule | 
-         .outbounds[] | select(.tag == $outbound_tag) | 
-         "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"' \
-         "$V2RAY_CONFIG_FILE"
+  show_config
 
   read -p "请输入要删除的 inbound 端口: " INBOUND_PORT
 
