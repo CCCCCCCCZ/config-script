@@ -11,10 +11,10 @@ function show_menu() {
 
 # 安装PPTP
 function install_pptp() {
-    echo "正在更新系统并安装PPTP客户端..."
+    echo "正在更新系统并安装PPTP客户端和net-tools..."
     sudo apt update
-    sudo apt install -y pptp-linux
-    echo "PPTP客户端安装完成！"
+    sudo apt install -y pptp-linux net-tools
+    echo "PPTP客户端和net-tools安装完成！"
 }
 
 # 卸载PPTP
@@ -55,7 +55,7 @@ EOF
     echo "正在配置全局VPN路由..."
     sudo tee /etc/ppp/ip-up.d/setroute > /dev/null <<EOF
 #!/bin/sh
-/sbin/route add default dev ppp0
+ip route add default dev ppp0
 EOF
 
     # 赋予脚本执行权限
@@ -68,10 +68,20 @@ EOF
     # 检查连接状态
     echo "VPN连接已启动，检查状态中..."
     sleep 5
-    ifconfig ppp0
-    route -n
+    ip a show ppp0
+    ip route
 
-    echo "PPTP配置完成！所有流量将通过VPN路由。"
+    # 设置开机自动连接PPTP
+    echo "正在设置开机自动连接PPTP..."
+    sudo tee -a /etc/rc.local > /dev/null <<EOF
+#!/bin/sh -e
+pon myvpn
+exit 0
+EOF
+
+    sudo chmod +x /etc/rc.local
+
+    echo "PPTP配置完成！所有流量将通过VPN路由，并且开机自动连接PPTP。"
 }
 
 # 主循环
