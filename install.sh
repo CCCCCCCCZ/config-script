@@ -46,29 +46,35 @@ uninstall_v2ray() {
 show_config() {
   echo "========== 当前配置 =========="
 
-  # 显示 inbounds 配置
-  echo "========== Inbounds =========="
-  grep -A 5 '"inbounds": \[' "$V2RAY_CONFIG_FILE" | grep -E '"tag":|"port":|"protocol":' | awk '
-    /"tag":/ { tag=$2; gsub(/"/, "", tag); gsub(/,/, "", tag) }
-    /"port":/ { port=$2; gsub(/,/, "", port) }
-    /"protocol":/ { protocol=$2; gsub(/"/, "", protocol); gsub(/,/, "", protocol); print "端口: " port ", 协议: " protocol ", 标签: " tag }
-  '
+  # 使用 Python 解析 JSON 文件
+  python3 - <<EOF
+import json
 
-  # 显示 outbounds 配置
-  echo "========== Outbounds =========="
-  grep -A 5 '"outbounds": \[' "$V2RAY_CONFIG_FILE" | grep -E '"tag":|"protocol":|"address":|"port":' | awk '
-    /"tag":/ { tag=$2; gsub(/"/, "", tag); gsub(/,/, "", tag) }
-    /"protocol":/ { protocol=$2; gsub(/"/, "", protocol); gsub(/,/, "", protocol) }
-    /"address":/ { address=$2; gsub(/"/, "", address); gsub(/,/, "", address) }
-    /"port":/ { port=$2; gsub(/,/, "", port); print "标签: " tag ", 协议: " protocol ", 地址: " address ", 端口: " port }
-  '
+# 读取配置文件
+with open("$V2RAY_CONFIG_FILE", "r") as f:
+    config = json.load(f)
 
-  # 显示 routing 规则
-  echo "========== Routing Rules =========="
-  grep -A 3 '"routing": {' "$V2RAY_CONFIG_FILE" | grep -E '"inboundTag":|"outboundTag":' | awk '
-    /"inboundTag":/ { inboundTag=$2; gsub(/"/, "", inboundTag); gsub(/,/, "", inboundTag) }
-    /"outboundTag":/ { outboundTag=$2; gsub(/"/, "", outboundTag); gsub(/,/, "", outboundTag); print "入站标签: " inboundTag ", 出站标签: " outboundTag }
-  '
+# 显示 inbounds 配置
+print("========== Inbounds ==========")
+for inbound in config.get("inbounds", []):
+    print(f"端口: {inbound.get('port', '未知')}, 协议: {inbound.get('protocol', '未知')}, 标签: {inbound.get('tag', '未知')}")
+
+# 显示 outbounds 配置
+print("========== Outbounds ==========")
+for outbound in config.get("outbounds", []):
+    servers = outbound.get("settings", {}).get("servers", [])
+    for server in servers:
+        print(f"标签: {outbound.get('tag', '未知')}, 协议: {outbound.get('protocol', '未知')}, 地址: {server.get('address', '未知')}, 端口: {server.get('port', '未知')}")
+
+# 显示 routing 规则
+print("========== Routing Rules ==========")
+for rule in config.get("routing", {}).get("rules", []):
+    inbound_tags = rule.get("inboundTag", [])
+    if not isinstance(inbound_tags, list):
+        inbound_tags = [inbound_tags]
+    for inbound_tag in inbound_tags:
+        print(f"入站标签: {inbound_tag}, 出站标签: {rule.get('outboundTag', '未知')}")
+EOF
 }
 
 # 配置 V2Ray
