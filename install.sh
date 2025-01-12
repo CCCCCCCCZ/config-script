@@ -77,7 +77,6 @@ configure_v2ray() {
   done
 }
 
-# 添加配置
 add_config() {
   echo "添加配置："
 
@@ -213,6 +212,12 @@ EOF
   )
 
   # 使用 jq 将新的配置追加到现有配置中
+  if ! command -v jq &> /dev/null; then
+    echo "jq 未安装，正在安装 jq..."
+    apt update && apt install -y jq
+  fi
+
+  # 追加新的 inbound、outbound 和路由规则
   jq ".inbounds += [$NEW_INBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
   jq ".outbounds += [$NEW_OUTBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
   jq ".routing.rules += [$NEW_ROUTING_RULE]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
