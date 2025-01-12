@@ -15,6 +15,7 @@ show_menu() {
 
 # 安装 V2Ray
 install_v2ray() {
+  apt update
   if ! command -v v2ray &> /dev/null; then
     echo "V2Ray 未安装，正在安装 V2Ray..."
     bash -c "$(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh)"
@@ -101,18 +102,6 @@ check_v2ray_configure() {
     if [[ ! -s "$V2RAY_CONFIG_FILE" ]] || [[ "$(cat "$V2RAY_CONFIG_FILE")" == "{}" ]]; then
       echo "配置文件存在但内容为空或仅包含 {}，将写入默认配置。"
       echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
-    else
-      # 检查配置文件格式是否有效
-      if ! jq empty "$V2RAY_CONFIG_FILE" &> /dev/null; then
-        echo "配置文件内容格式错误，将重置为默认配置。"
-        echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
-      else
-        # 检查配置文件结构是否完整
-        if ! jq '.inbounds != null and .outbounds != null and .routing.rules != null' "$V2RAY_CONFIG_FILE" &> /dev/null; then
-          echo "配置文件结构不完整，将重置为默认配置。"
-          echo '{"inbounds": [], "outbounds": [], "routing": {"rules": []}}' > "$V2RAY_CONFIG_FILE"
-        fi
-      fi
     fi
   fi
 }
