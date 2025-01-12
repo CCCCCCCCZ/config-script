@@ -9,7 +9,8 @@ show_menu() {
   echo "1. 安装 V2Ray"
   echo "2. 卸载 V2Ray"
   echo "3. 配置 V2Ray"
-  echo "4. 退出"
+  echo "4. 查看 V2Ray"
+  echo "5. 退出"
 }
 
 # 安装 V2Ray
@@ -88,6 +89,7 @@ for inbound in config.get("inbounds", []):
                     break
             break
 EOF
+echo "=============================="
 }
 
 # 配置 V2Ray
@@ -559,7 +561,8 @@ while true; do
     1) install_v2ray ;;
     2) uninstall_v2ray ;;
     3) configure_v2ray ;;
-    4) exit 0 ;;
+    4) show_config ;;
+    5) exit 0 ;;
     *) echo "无效的选择，请重新输入！" ;;
   esac
 done
