@@ -160,7 +160,7 @@ add_config() {
   "port": $INBOUND_PORT,
   "protocol": "$INBOUND_PROTOCOL",
   "settings": {
-    "udp": true,
+    "udp": True,
     "ip": "0.0.0.0"
   }
 }
@@ -180,7 +180,7 @@ EOF
         "pass": "$INBOUND_PASS"
       }
     ],
-    "udp": true,
+    "udp": True,
     "ip": "0.0.0.0"
   }
 }
@@ -275,7 +275,7 @@ EOF
         "port": $OUTBOUND_PORT
       }
     ]
-      }
+  }
 }
 EOF
       )
@@ -422,6 +422,7 @@ for inbound in config["inbounds"]:
         if "$NEW_INBOUND_USER" and "$NEW_INBOUND_PASS":
             inbound["settings"]["accounts"][0]["user"] = "$NEW_INBOUND_USER"
             inbound["settings"]["accounts"][0]["pass"] = "$NEW_INBOUND_PASS"
+        inbound["settings"]["udp"] = True  # 修正为 Python 的 True
 
 with open("$V2RAY_CONFIG_FILE", "w") as f:
     json.dump(config, f, indent=2)
@@ -466,6 +467,8 @@ for outbound in config["outbounds"]:
             outbound["settings"]["servers"][0]["users"][0]["pass"] = "$NEW_OUTBOUND_PASS"
         else:
             outbound["settings"]["servers"][0].pop("users", None)
+        if "udp" in outbound["settings"]:
+            outbound["settings"]["udp"] = True  # 修正为 Python 的 True
 
 with open("$V2RAY_CONFIG_FILE", "w") as f:
     json.dump(config, f, indent=2)
