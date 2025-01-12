@@ -435,11 +435,11 @@ EOF
 
 # 修改 outbound 配置
 modify_outbound() {
-  read -p "请输入新的 outbound 目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')): " NEW_OUTBOUND_ADDRESS
-  NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address')}
+  read -p "请输入新的 outbound 目标服务器地址 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // "无"')): " NEW_OUTBOUND_ADDRESS
+  NEW_OUTBOUND_ADDRESS=${NEW_OUTBOUND_ADDRESS:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].address // ""')}
 
-  read -p "请输入新的 outbound 目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')): " NEW_OUTBOUND_PORT
-  NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port')}
+  read -p "请输入新的 outbound 目标服务器端口 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // "无"')): " NEW_OUTBOUND_PORT
+  NEW_OUTBOUND_PORT=${NEW_OUTBOUND_PORT:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].port // ""')}
 
   read -p "请输入新的 outbound 用户名 (当前: $(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // "无"')): " NEW_OUTBOUND_USER
   NEW_OUTBOUND_USER=${NEW_OUTBOUND_USER:-$(echo "$OUTBOUND_CONFIG" | jq -r '.settings.servers[0].users[0].user // ""')}
@@ -451,6 +451,18 @@ modify_outbound() {
     NEW_OUTBOUND_PASS=""
   fi
 
+  # 支持的协议列表
+  PROTOCOLS=("socks" "http" "shadowsocks" "vmess" "trojan" "vless" "freedom")
+
+  # 选择新的协议
+  echo "请选择新的 outbound 协议："
+  for i in "${!PROTOCOLS[@]}"; do
+    echo "$((i+1)). ${PROTOCOLS[$i]}"
+  done
+  read -p "请输入协议序号 (默认: 1): " OUTBOUND_PROTOCOL_INDEX
+  OUTBOUND_PROTOCOL_INDEX=${OUTBOUND_PROTOCOL_INDEX:-1}
+  NEW_OUTBOUND_PROTOCOL=${PROTOCOLS[$((OUTBOUND_PROTOCOL_INDEX-1))]}
+
   # 使用 Python 更新 outbound 配置
   python3 - <<EOF
 import json
@@ -460,16 +472,33 @@ with open("$V2RAY_CONFIG_FILE", "r") as f:
 
 for outbound in config["outbounds"]:
     if outbound["tag"] == "$OUTBOUND_TAG":
-        outbound["settings"]["servers"][0]["address"] = "$NEW_OUTBOUND_ADDRESS"
-        outbound["settings"]["servers"][0]["port"] = $NEW_OUTBOUND_PORT
-        if "$NEW_OUTBOUND_USER" and "$NEW_OUTBOUND_PASS":
-            outbound["settings"]["servers"][0]["users"][0]["user"] = "$NEW_OUTBOUND_USER"
-            outbound["settings"]["servers"][0]["users"][0]["pass"] = "$NEW_OUTBOUND_PASS"
-        else:
-            outbound["settings"]["servers"][0].pop("users", None)
-        if "udp" in outbound["settings"]:
-            outbound["settings"]["udp"] = True  # 修正为 Python 的 True
+        # 更新协议
+        outbound["protocol"] = "$NEW_OUTBOUND_PROTOCOL"
 
+        if "$NEW_OUTBOUND_PROTOCOL" == "freedom":
+            # 如果是 freedom 协议，清空 settings 中的 servers 和 users
+            outbound["settings"] = {}
+        else:
+            # 其他协议需要配置服务器地址、端口、用户名和密码
+            if "servers" not in outbound["settings"]:
+                outbound["settings"]["servers"] = [{}]
+
+            # 更新服务器地址和端口
+            outbound["settings"]["servers"][0]["address"] = "$NEW_OUTBOUND_ADDRESS"
+            outbound["settings"]["servers"][0]["port"] = $NEW_OUTBOUND_PORT
+
+            # 更新用户名和密码
+            if "$NEW_OUTBOUND_USER" and "$NEW_OUTBOUND_PASS":
+                if "users" not in outbound["settings"]["servers"][0]:
+                    outbound["settings"]["servers"][0]["users"] = [{}]
+                outbound["settings"]["servers"][0]["users"][0]["user"] = "$NEW_OUTBOUND_USER"
+                outbound["settings"]["servers"][0]["users"][0]["pass"] = "$NEW_OUTBOUND_PASS"
+            elif "users" in outbound["settings"]["servers"][0]:
+                # 如果用户名为空，删除 users 字段
+                outbound["settings"]["servers"][0].pop("users", None)
+        break
+
+# 写回配置文件
 with open("$V2RAY_CONFIG_FILE", "w") as f:
     json.dump(config, f, indent=2)
 EOF
