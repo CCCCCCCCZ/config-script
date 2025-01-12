@@ -48,15 +48,27 @@ show_config() {
 
   # 显示 inbounds 配置
   echo "========== Inbounds =========="
-  jq -r '.inbounds[] | "端口: \(.port), 协议: \(.protocol), 标签: \(.tag)"' "$V2RAY_CONFIG_FILE"
+  grep -A 5 '"inbounds": \[' "$V2RAY_CONFIG_FILE" | grep -E '"tag":|"port":|"protocol":' | awk '
+    /"tag":/ { tag=$2; gsub(/"/, "", tag); gsub(/,/, "", tag) }
+    /"port":/ { port=$2; gsub(/,/, "", port) }
+    /"protocol":/ { protocol=$2; gsub(/"/, "", protocol); gsub(/,/, "", protocol); print "端口: " port ", 协议: " protocol ", 标签: " tag }
+  '
 
   # 显示 outbounds 配置
   echo "========== Outbounds =========="
-  jq -r '.outbounds[] | "标签: \(.tag), 协议: \(.protocol), 地址: \(.settings.servers[0].address), 端口: \(.settings.servers[0].port)"' "$V2RAY_CONFIG_FILE"
+  grep -A 5 '"outbounds": \[' "$V2RAY_CONFIG_FILE" | grep -E '"tag":|"protocol":|"address":|"port":' | awk '
+    /"tag":/ { tag=$2; gsub(/"/, "", tag); gsub(/,/, "", tag) }
+    /"protocol":/ { protocol=$2; gsub(/"/, "", protocol); gsub(/,/, "", protocol) }
+    /"address":/ { address=$2; gsub(/"/, "", address); gsub(/,/, "", address) }
+    /"port":/ { port=$2; gsub(/,/, "", port); print "标签: " tag ", 协议: " protocol ", 地址: " address ", 端口: " port }
+  '
 
   # 显示 routing 规则
   echo "========== Routing Rules =========="
-  jq -r '.routing.rules[] | "入站标签: \(.inboundTag[]), 出站标签: \(.outboundTag)"' "$V2RAY_CONFIG_FILE"
+  grep -A 3 '"routing": {' "$V2RAY_CONFIG_FILE" | grep -E '"inboundTag":|"outboundTag":' | awk '
+    /"inboundTag":/ { inboundTag=$2; gsub(/"/, "", inboundTag); gsub(/,/, "", inboundTag) }
+    /"outboundTag":/ { outboundTag=$2; gsub(/"/, "", outboundTag); gsub(/,/, "", outboundTag); print "入站标签: " inboundTag ", 出站标签: " outboundTag }
+  '
 }
 
 # 配置 V2Ray
