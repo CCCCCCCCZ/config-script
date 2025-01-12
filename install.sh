@@ -218,9 +218,29 @@ EOF
   fi
 
   # 追加新的 inbound、outbound 和路由规则
+  echo "正在追加 inbound 配置..."
   jq ".inbounds += [$NEW_INBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+  if [ $? -eq 0 ]; then
+    echo "inbound 配置已成功写入文件。"
+  else
+    echo "inbound 配置写入失败！"
+  fi
+
+  echo "正在追加 outbound 配置..."
   jq ".outbounds += [$NEW_OUTBOUND]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+  if [ $? -eq 0 ]; then
+    echo "outbound 配置已成功写入文件。"
+  else
+    echo "outbound 配置写入失败！"
+  fi
+
+  echo "正在追加 routing 规则..."
   jq ".routing.rules += [$NEW_ROUTING_RULE]" "$V2RAY_CONFIG_FILE" > tmp.json && mv tmp.json "$V2RAY_CONFIG_FILE"
+  if [ $? -eq 0 ]; then
+    echo "routing 规则已成功写入文件。"
+  else
+    echo "routing 规则写入失败！"
+  fi
 
   echo "配置已添加！"
   systemctl restart v2ray
