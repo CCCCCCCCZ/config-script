@@ -45,16 +45,18 @@ uninstall_v2ray() {
 # 显示当前配置
 show_config() {
   echo "========== 当前配置 =========="
-  echo "========== Inbounds => Outbounds =========="
-  jq -r '
-    .inbounds // [] | .[] | .tag as $inbound_tag | .port as $inbound_port | 
-    . as $inbound | 
-    .routing.rules // [] | .[] | select(.inboundTag // [] | index($inbound_tag) != null) | 
-    .outboundTag as $outbound_tag | 
-    . as $rule | 
-    .outbounds // [] | .[] | select(.tag == $outbound_tag) | 
-    "Inbounds: \($inbound_port) => Outbounds: \(.settings.servers[0].address):\(.settings.servers[0].port)"
-  ' "$V2RAY_CONFIG_FILE"
+
+  # 显示 inbounds 配置
+  echo "========== Inbounds =========="
+  jq -r '.inbounds[] | "端口: \(.port), 协议: \(.protocol), 标签: \(.tag)"' "$V2RAY_CONFIG_FILE"
+
+  # 显示 outbounds 配置
+  echo "========== Outbounds =========="
+  jq -r '.outbounds[] | "标签: \(.tag), 协议: \(.protocol), 地址: \(.settings.servers[0].address), 端口: \(.settings.servers[0].port)"' "$V2RAY_CONFIG_FILE"
+
+  # 显示 routing 规则
+  echo "========== Routing Rules =========="
+  jq -r '.routing.rules[] | "入站标签: \(.inboundTag[]), 出站标签: \(.outboundTag)"' "$V2RAY_CONFIG_FILE"
 }
 
 # 配置 V2Ray
