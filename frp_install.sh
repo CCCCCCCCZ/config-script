@@ -6,8 +6,7 @@ FRP_VERSION="0.61.1"
 BIND_PORT="7000"
 DASHBOARD_PORT="7500"
 DASHBOARD_USER="admin"
-DASHBOARD_PWD=$(date +%s | sha256sum | base64 | head -c 16)  # 随机生成密码
-TOKEN=$(openssl rand -hex 16)
+DASHBOARD_PWD="admin"
 
 # 检测root权限
 if [ "$(id -u)" != "0" ]; then
@@ -42,15 +41,12 @@ chmod +x /usr/local/bin/frps
 
 # 生成TOML格式配置文件
 cat > /etc/frp/frps.toml <<EOF
-[common]
 bindPort = ${BIND_PORT}
-token = "${TOKEN}"
 
-[webServer]
-addr = "0.0.0.0"
-port = ${DASHBOARD_PORT}
-user = "${DASHBOARD_USER}"
-password = "${DASHBOARD_PWD}"
+webServer.addr = "0.0.0.0"
+webServer.port = ${DASHBOARD_PORT}
+webServer.user = "${DASHBOARD_USER}"
+webServer.password = "${DASHBOARD_PWD}"
 EOF
 
 # 创建系统服务
@@ -91,5 +87,4 @@ echo -e "\n\033[32mFRP服务端部署完成\033[0m"
 echo -e "访问仪表板: \033[34mhttp://服务器IP:${DASHBOARD_PORT}\033[0m"
 echo -e "用户名: ${DASHBOARD_USER}"
 echo -e "密码: \033[31m${DASHBOARD_PWD}\033[0m"
-echo -e "客户端连接令牌: \033[31m${TOKEN}\033[0m"
 echo -e "验证命令: systemctl status frps"
